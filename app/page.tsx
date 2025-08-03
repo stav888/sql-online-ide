@@ -1,35 +1,67 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { LeftPanel } from "@/components/LeftPanel"
 import { SqlEditor } from "@/components/SqlEditor"
 import { VisualTable } from "@/components/VisualTable"
 import { HistoryPanel } from "@/components/HistoryPanel"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export default function Home() {
+function SqlIdeContent() {
+  const searchParams = useSearchParams()
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false)
   const [sqlQuery, setSqlQuery] = useState("")
   const [queryResults, setQueryResults] = useState<Record<string, unknown>[]>([])
   const [isExecuting, setIsExecuting] = useState(false)
+
+  // Load query from URL parameters (for shared links)
+  useEffect(() => {
+    const queryParam = searchParams.get('query')
+    if (queryParam) {
+      setSqlQuery(decodeURIComponent(queryParam))
+    }
+  }, [searchParams])
 
   const handleExecuteQuery = async () => {
     if (!sqlQuery.trim()) return
     
     setIsExecuting(true)
     try {
-      // TODO: Implement query execution
-      console.log("Executing query:", sqlQuery)
-      // Mock results for now
-      setQueryResults([
-        { id: 1, name: "John Doe", email: "john@example.com" },
-        { id: 2, name: "Jane Smith", email: "jane@example.com" }
-      ])
+      const response = await fetch('/api/execute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: sqlQuery,
+          database: 'sqlite' // Default to SQLite for now
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Query execution failed')
+      }
+
+      if (result.data) {
+        setQueryResults(result.data)
+      } else if (result.message) {
+        // For DML operations, show a success message
+        console.log(result.message)
+        setQueryResults([])
+      }
     } catch (error) {
       console.error("Query execution error:", error)
+      setQueryResults([])
     } finally {
       setIsExecuting(false)
     }
+  }
+
+  const handleRestoreQuery = (query: string) => {
+    setSqlQuery(query)
   }
 
   return (
@@ -64,12 +96,27 @@ export default function Home() {
                 <VisualTable data={queryResults} />
               </TabsContent>
               <TabsContent value="history" className="h-full">
-                <HistoryPanel />
+                <HistoryPanel onRestoreQuery={handleRestoreQuery} />
               </TabsContent>
             </Tabs>
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Loading SQL IDE...</p>
+        </div>
+      </div>
+    }>
+      <SqlIdeContent />
+    </Suspense>
   )
 }

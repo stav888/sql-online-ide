@@ -96,9 +96,37 @@ export function SqlEditor({ value, onChange, onExecute, isExecuting }: SqlEditor
     }
   }
 
-  const handleShare = () => {
-    // TODO: Implement share functionality
-    console.log("Share query:", value)
+  const handleShare = async () => {
+    if (!value.trim()) {
+      alert('Please enter a query to share')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/share', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: value,
+          expirationHours: 24 // Share for 24 hours
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create share link')
+      }
+
+      // Copy the share URL to clipboard
+      await navigator.clipboard.writeText(result.shareUrl)
+      alert(`Share link copied to clipboard!\n${result.shareUrl}`)
+    } catch (error) {
+      console.error('Share error:', error)
+      alert('Failed to create share link. Please try again.')
+    }
   }
 
   const handleExport = () => {

@@ -70,33 +70,41 @@ export function VisualTable({ data }: VisualTableProps) {
     },
   })
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (!data || data.length === 0) return
 
-    const headers = Object.keys(data[0])
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => 
-        headers.map(header => {
-          const value = row[header]
-          if (value === null || value === undefined) return ''
-          if (typeof value === 'string' && value.includes(',')) {
-            return `"${value.replace(/"/g, '""')}"`
-          }
-          return String(value)
-        }).join(',')
-      )
-    ].join('\n')
+    try {
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data,
+          format: 'csv',
+          filename: 'query-results'
+        }),
+      })
 
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'query-results.csv'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+      if (!response.ok) {
+        throw new Error('Export failed')
+      }
+
+      // Get the CSV content and download it
+      const csvContent = await response.text()
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'query-results.csv'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Export error:', error)
+      alert('Failed to export data. Please try again.')
+    }
   }
 
   if (!data || data.length === 0) {
